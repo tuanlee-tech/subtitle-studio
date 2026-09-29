@@ -31,6 +31,8 @@ Công cụ tạo phụ đề video chạy hoàn toàn trên máy local — khôn
 
 ## B. Phát triển (dev)
 
+> Clone sang máy mới? Làm theo **[CLONE.md](CLONE.md)** (có bước push/clone + checklist lần đầu).
+
 ### Yêu cầu hệ thống
 
 - **Node.js ≥ 20** (bắt buộc)
