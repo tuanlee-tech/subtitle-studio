@@ -1,0 +1,6 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+torch==2.14.0+cpu
+transformers==5.17.0
+sentencepiece==0.2.2

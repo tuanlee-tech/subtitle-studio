@@ -1,0 +1,28 @@
+# runtime / môi trường
+node_modules/
+.venv/
+venv/
+models/
+
+# dữ liệu runtime (upload, job, font người dùng)
+storage/
+public/fonts/custom/*
+!public/fonts/custom/.gitkeep
+public/input_*
+
+# build / phát hành
+web/dist/
+dist/
+release/
+
+# debug / QA tạm
+.work/
+*.log
+.work_*.wav
+qa-*.png
+
+# output render
+video_subbed.mp4
+
+.DS_Store
+Thumbs.db
