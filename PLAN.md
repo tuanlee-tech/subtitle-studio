@@ -4,116 +4,132 @@
 bấm đúp `start.cmd` → trình duyệt mở `http://localhost:4174` → dùng đủ 7 bước UI.
 **Không cài Node, không cài Python, không cài ffmpeg, không mở terminal.**
 
-Đã chốt với user: Windows 64-bit · zip ~1.2GB · model 1.7GB tải mạng lần đầu ·
-không Docker · không kèm model · có Git commit.
+Đã chốt với user: Windows 64-bit · zip ~1.2GB · model tải mạng lần đầu · không Docker ·
+không kèm model · có Git commit.
+
+> ## TRẠNG THÁI HIỆN TẠI
+> - **Phase A — HOÀN TẤT** (commit `f3d7f66`, 65 file, working tree sạch).
+> - **Phase B — TẠM HOÃN theo yêu cầu user** ("viết vào plan, khi khác làm").
+>   B1 (spike) đang **~90% đạt**: Python embeddable đã chạy được với đủ 43 gói,
+>   chỉ còn 1 test cuối chưa làm xong → xem chi tiết B1 bên dưới.
+> - Khi quay lại: **bắt đầu từ nốt B1 (chạy transcribe với `video.mp4`)** rồi B2 → B5.
 
 ---
 
-## Phase A — Dọn dẹp repo + Git commit
+## Phase A — Dọn dẹp repo + Git commit ✅ HOÀN TẤT
 
-### A1. Xóa file chết ở root
-- [ ] `.work_audio.wav` (0.53MB) — audio tạm
-- [ ] `video_subbed.mp4` (11.9MB) — output render cũ (tạo lại được)
-- [ ] `venv/` (5 file, layout POSIX `bin/`) — dead: `env.js` tìm `venv/Scripts/python.exe`
-      (không tồn tại) và `.venv` luôn được ưu tiên
-- [ ] `storage/<20 job uuid>/` (116MB) — dữ liệu QA cũ; **giữ** `storage/fonts.json` (đặt lại `[]`)
+- [x] **A1. Xóa file chết root:** `.work_audio.wav`, `video_subbed.mp4`, `venv/` (POSIX
+      rỗng), 19 job trong `storage/` — `storage/fonts.json` đặt lại `[]` (UTF-8 không BOM)
+- [x] **A2. Dọn `.work/`** 274MB → 5.2MB. Giữ: `georgia.ttf` (QA 06d cần), 4 `verify-*.mjs`,
+      `qa/`. Xóa 19 mục (log, profile Chrome, test_*.py…); `dev-font.log` xóa được sau khi
+      kill dev server nền
+- [x] **A3. Model:** xác minh slug → xóa `buzzasr-vi/` + `phowhisper-medium/` +
+      `phoasr-whisper-small/` (2.47GB, không code nào tham chiếu). **Giữ**
+      `models/BuzzASR-vietnamese/` (timing pass mặc định). Text pass mặc định
+      (`Qualcomm-AI-Research/PhoASR-whisper-small`) nằm ở HF cache ngoài repo
+- [x] **A4. Smoke test:** `/api/health` xanh, vite 200 sau dọn dẹp
+- [x] **A5. File cấu hình:**
+      - `.gitignore` (node_modules/.venv/models/storage/.work/web/dist/release…)
+      - `requirements.txt` — 5 gói + dòng 1 `--extra-index-url .../whl/cpu` (đã verify: `npm run setup` resolve `torch==2.14.0+cpu` OK)
+      - `README.md` — phần A người dùng portable, phần B dev (setup/doctor/build-portable/QA/lỗi thường gặp)
+      - `scripts/setup.mjs` — `npm run setup` (tự cài) + `npm run doctor` (chỉ check), reuse `server/env.js`
+      - `package.json` — `engines node>=20`, scripts `setup/doctor/build-portable`, **`vite` → devDependencies**
+      - `public/fonts/custom/.gitkeep`
+      - Verify: `npm run doctor` ✅ · `npm run setup` ✅ · `npm run typecheck` ✅ · `npm run build` ✅
+- [x] **A6. Git:** `git init -b main`, identity local `tuanlee <tuanlee@users.noreply.github.com>`
+      (user chưa có global identity — sửa bằng `git config user.email` nếu cần),
+      audit ignore ✅ (không lọt `.venv/node_modules/models/storage/.work/web/dist`),
+      **commit `f3d7f66` "chore: repo cleanup + environment config"** (65 file)
 
-### A2. Dọn `.work/` (274MB → giữ ~0.3MB)
-- [ ] **GIỮ:** `georgia.ttf` (QA `scripts/qa-ui.mjs` scenario 06d cần),
-      `verify-*.mjs` (4 script QA), `qa/` (thư mục output screenshot)
-- [ ] **XÓA:** `*.log` (12 file), `qa-*-profile/` (3 profile Chrome tự sinh lại),
-      `dev-look.pid`, `test_*.py`, `transcript_test.json`, `sep/`, `dev-font.log`
-
-### A3. Model (`models/` 3.95GB, gitignore — không ảnh hưởng commit)
-- [ ] **Xác minh slug trước khi xóa:** code dùng mặc định
-      `Qualcomm-AI-Research/PhoASR-whisper-small` → dir `phoasr-whisper-small` ✅ và
-      `BuzzASR/vietnamese` → dir `BuzzASR-vietnamese` ✅
-- [ ] Nếu đúng: xóa `buzzasr-vi/` (1.48GB, tên cũ) + `phowhisper-medium/` (742MB, leftover
-      experiment) → frees 2.2GB. **Không chắc thì GIỮ** (chúng không vào git).
-
-### A4. Smoke test sau dọn dẹp
-- [ ] `npm run doctor` / `GET /api/health` vẫn xanh (Python từ `.venv`, ffprobe ok)
-- [ ] Server vẫn start, upload `video.mp4` vẫn probe được
-
-### A5. Thêm file cấu hình repo (P1)
-- [ ] `.gitignore`: `node_modules/ .venv/ venv/ models/ storage/ .work/ release/
-      web/dist/ dist/ video_subbed.mp4 .work_*.wav public/input_* *.log`
-- [ ] `requirements.txt` (5 gói, dòng 1 là `--extra-index-url https://download.pytorch.org/whl/cpu`):
-      `faster-whisper==1.2.1`, `ctranslate2==4.8.2`, `torch==2.14.0+cpu`,
-      `transformers==5.17.0`, `sentencepiece==0.2.2`
-      (đã xác minh `demucs/librosa/scipy/sklearn/accelerate` **không file nào import**)
-- [ ] `README.md` (tiếng Việt, 2 phần):
-      - **A. Người dùng:** tải zip → giải nén → `start.cmd` → mở 4174 → lần đầu
-        Transcribe tải ~1.7GB model
-      - **B. Dev:** Node ≥20 + Python 3.10–3.12 (ffmpeg/Chrome = tùy chọn) →
-        `npm install` → `npm run setup` → `npm run dev` (5173) · `npm run build && npm start`
-        (4174) · CLI `npm run sub` · `npm run doctor` · `npm run build-portable` · QA ·
-        bảng lỗi thường gặp
-- [ ] `package.json`:
-      - `engines: {"node": ">=20"}`
-      - scripts: `setup`, `doctor`, `build-portable`
-      - chuyển `vite`, `@vitejs/plugin-react`, `typescript`, `@types/*` → `devDependencies`
-        (server production không dùng → `npm ci --omit=dev` lúc đóng gói nhẹ hơn)
-- [ ] `scripts/setup.mjs` (mới, reuse `resolvePython/checkPython/checkCommand` từ `server/env.js`):
-      - `npm run doctor` = chỉ in bảng ✅/❌ tiếng Việt (Node, Python, ffprobe, Chrome, models/)
-      - `npm run setup` = tìm Python 3.10–3.12 → tạo `.venv` nếu thiếu →
-        `pip install -r requirements.txt` (stdio inherit) → in checklist → gợi ý `npm run dev`
-- [ ] Verify: `npm run typecheck` ✅ · `npm run build` ✅ · `npm run doctor` ✅
-
-### A6. Git init + commit
-- [ ] `git init` (kiểm tra `user.name`/`user.email` có sẵn, không thì cấu hình tạm local)
-- [ ] `git status` audit: **không** staged `node_modules .venv models storage .work web/dist release`
-- [ ] Commit 1: `chore: dọn dẹp repo + cấu hình (gitignore, requirements, README, setup)`
-- [ ] Kiểm tra `git ls-files | wc` hợp lý (code + config + font + video demo, không có rác)
+Ghi chú: đã kill 2 process node nền giữ port 4174/5173 (PID 19836, 11008) →
+user có thể tự chạy `npm run dev` bình thường.
 
 ---
 
-## Phase B — Gói Portable Zero-Install
+## Phase B — Gói Portable Zero-Install ⏸ TẠM HOÃN
 
-### B1. SPIKE — test Python embeddable TRƯỚC (cổng quyết định, 45')
-- [ ] Tải `python-3.12.x-embed-amd64.zip` + `get-pip.py` → `.work/runtimes/` (cache)
-- [ ] Mở `import site` trong `python312._pth` → cài 5 gói từ `requirements.txt`
-- [ ] Test: `import faster_whisper, ctranslate2, torch, transformers, sentencepiece`
-- [ ] Chạy thật: cắt clip ngắn từ `video.mp4` → `scripts/detect_language.py` +
-      `scripts/transcribe.py` (dùng `models/` sẵn có, không tải)
-- [ ] **PASS → làm tiếp · FAIL → DỪNG, báo user chọn Plan B** (yêu cầu cài Python, hoặc Docker)
+> **Làm tiếp khi quay lại:** chạy nốt B1(g) → xác nhận PASS → B2 → B3 → B4 → B5.
+> Toàn bộ artifact của spike còn nguyên vẹn trong `.work/runtimes/` (~1GB, gitignored)
+> nên **không phải tải/cài lại gì**.
 
-### B2. Bỏ hẳn ffmpeg (45')
+### B1. SPIKE — test Python embeddable (cổng quyết định) — ⏸ ~90%
+
+Đã làm (KHÔNG phải làm lại):
+
+- [x] (a) Tải `python-3.12.10-embed-amd64.zip` (10.6MB) + `get-pip.py` → `.work/runtimes/`,
+      giải nén vào `.work/runtimes/python/`
+- [x] (b) Patch `python312._pth`: bỏ `#` ở dòng `import site` (bắt buộc, không thì pip không thấy)
+- [x] (c) `python.exe get-pip.py` → pip 26.2.1 chạy trong bản embeddable
+- [x] (d) `pip install -r requirements.txt` → **43 gói thành công** (dùng chung pip cache với
+      `.venv` nên nhanh): `torch 2.14.0+cpu`, `transformers 5.17.0`, `faster-whisper 1.2.1`,
+      `ctranslate2 4.8.2`, `sentencepiece`, `av`, `onnxruntime`…
+- [x] (e) Import test ✅: `faster_whisper, ctranslate2, torch, transformers, sentencepiece, av, onnxruntime`
+- [x] (f) Decode audio ✅: `ffmpeg_read(video.mp4)` chạy tốt trên **cả embeddable và `.venv`**
+      (kết quả giống hệt: 279359 samples) → subprocess gọi ffmpeg OK, audio pipeline OK
+
+**Chưa làm / lần sau làm nốt:**
+
+- [ ] **(g) Chạy `transcribe.py` đầy đủ 2-pass với `video.mp4`** (không phải clip) rồi đối
+      chiếu output với `.venv` — đây là nốt cuối của cổng quyết định B1
+      - Lệnh (đã test đúng cấu hình 1 lần, chỉ chưa chạy với `video.mp4`):
+        ```powershell
+        $env:PYTHONIOENCODING='utf-8'
+        .work\runtimes\python\python.exe scripts\transcribe.py video.mp4 `
+          --out .work\runtimes\spike-out.json --language auto
+        ```
+      - Kỳ vọng: language detect → text pass (PhoASR, lấy từ HF cache) → timing pass
+        (`models/BuzzASR-vietnamese` sẵn có) → file JSON ra, exit 0
+- [ ] **(h) Test `translate.py`** (dùng transformers, rủi ro thấp nhưng nên chạy 1 lần)
+
+Kiến thức rút ra từ spike (đừng quên):
+
+1. **Lỗi lúc đầu KHÔNG phải do embeddable** — clip test `clip8s.mp4` (ffmpeg `-t 8 -c copy`)
+   bị `transformers.ffmpeg_read` từ chối, và **`.venv` cũng fail y hệt với clip đó** → clip
+   là thủ phạm. Dùng `video.mp4` gốc thì OK cả hai môi trường.
+2. Cảnh báo **`language detection failed ('float' object is not subscriptable)` → fallback 'vi'**
+   xuất hiện ở lần chạy embeddable — cần chạy lại với `.venv` để xem có phải bug có sẵn
+   (`transcribe.py` ~dòng 55-63, `detect_language`) hay không. Nếu cả hai đều fail thì là
+   bug cũ, sửa riêng (không chặn portable).
+3. `PYTHONIOENCODING=utf-8` vẫn cần khi chạy tay.
+4. Runtime cache: `.work/runtimes/` = **1.024MB** (python embed + 43 gói + clip + get-pip) —
+   gitignored, giữ lại để lần sau build tiếp chỉ mất vài phút.
+
+### B2. Bỏ hẳn ffmpeg (45') — chưa làm
+
 - [ ] `lib/probe.mjs` (mới): `@remotion/media-parser` đọc
       `dimensions/fps/durationInSeconds/audioCodec/containerFormat` + `fs.stat` (size) +
       bitRate tự tính → **fallback `ffprobe`** nếu máy có → cả hai fail: lỗi tiếng Việt
 - [ ] `server/probe.js` re-export từ `lib/probe.mjs`; `cli.mjs:173` dùng chung `probeVideo`
-- [ ] Test: probe `mp4/webm/mov/mkv` (dùng ffmpeg tạo mẫu) · chạy với PATH **không** có
-      ffprobe (mô phỏng máy bạn tôi) · file hỏng → lỗi tiếng Việt
-- [ ] Health (`/api/health`): thêm `node` version, browser thật (`getBrowserExecutable()`
-      thay vì echo env `REMOTION_BROWSER` — đang hiểu nhầm), model cache;
-      ffprobe đánh dấu là **tùy chọn**
+- [ ] Test: probe `mp4/webm/mov/mkv` (ffmpeg tạo mẫu) · PATH **không** có ffprobe · file hỏng
+- [ ] Health: thêm `node` version, browser thật (`getBrowserExecutable()` — hiện
+      `REMOTION_BROWSER` echo env là hiểu nhầm), model cache; ffprobe → **tùy chọn**
 
-### B3. `scripts/build-portable.mjs` (1.5h)
-- [ ] Bước: `npm run build` (vite → `web/dist`) → dựng staging allow-list
-      (code, `web/dist`, `public/`, `video.mp4`, `video.srt`, `package*.json`, lock) →
-      `npm ci --omit=dev` trong staging → tải runtime (cache `.work/runtimes/`):
-      Node portable `node-v22*-win-x64.zip` + Python embeddable → bake 5 gói pip vào
-      `runtime\python` → sinh `start.cmd` + `README.txt` → nén `tar.exe -a -cf` →
-      `release/sub-tool-win64-1.0.0.zip` (~1.2GB)
-- [ ] `start.cmd`: set `PYTHON=%~dp0runtime\python\python.exe`
-      (`env.js:13` **đã hỗ trợ `process.env.PYTHON` sẵn**, không sửa server) →
-      chạy `runtime\node\node.exe server\index.js` (single port 4174, serve `web/dist`) →
-      mở trình duyệt `http://localhost:4174`
-- [ ] Giữ lại được `.work/runtimes/` cache → lần sau build chỉ ~5 phút
+### B3. `scripts/build-portable.mjs` (1.5h) — chưa làm
 
-### B4. Verify E2E — đúng kịch bản máy bạn tôi (1h)
-- [ ] Giải nén zip vào `%TEMP%` → chạy `start.cmd` → trình duyệt tự mở 4174
-- [ ] Health xanh: Python từ `runtime\`, browser detect Edge/Chrome, **không cần ffprobe**
-- [ ] Full flow: upload `video.mp4` → Language → **Transcribe tải model 1.7GB thật** →
-      Review → Save → Style (kể cả upload font) → Render → có `video_subbed.mp4`
-- [ ] Soi zip: không chứa `.venv/`, `storage/`, `.work/`, file rác QA
-- [ ] Trên source: `npm run typecheck` ✅ · `npm run build` ✅ · `npm run doctor` ✅
-- [ ] Dọn `%TEMP%` (~4GB)
+- [ ] `npm run build` → staging allow-list (code, `web/dist`, `public/`, `video.mp4`,
+      `video.srt`, lock) → `npm ci --omit=dev`
+- [ ] Copy runtime từ `.work/runtimes/` (đã có sẵn!) — đừng tải lại; script nên tự tải
+      nếu cache thiếu (URL: python.org embed zip + bootstrap.pypa.io/get-pip.py)
+- [ ] Bake pip vào `runtime\python` · sinh `start.cmd` + `README.txt`
+- [ ] `start.cmd`: set `PYTHON=%~dp0runtime\python\python.exe` (`env.js:13` **hỗ trợ sẵn**
+      `process.env.PYTHON`, không sửa server) → `runtime\node\node.exe server\index.js`
+      (1 port 4174, serve `web/dist`) → mở trình duyệt
+- [ ] Nén `tar.exe -a -cf` → `release/sub-tool-win64-1.0.0.zip` (~1.2GB)
+- [ ] Tải Node portable `node-v22*-win-x64.zip` khi build (cache trong `.work/runtimes/`)
 
-### B5. Commit cuối + báo cáo
-- [ ] Commit 2: `feat: gói portable zero-install + bỏ phụ thuộc ffprobe`
-- [ ] Báo user: đường dẫn zip, dung lượng, cách gửi, cách rebuild sau khi sửa code
+### B4. Verify E2E — đúng kịch bản máy bạn tôi (1h) — chưa làm
+
+- [ ] Giải nén zip vào `%TEMP%` → `start.cmd` → 4174 (nếu dev đang chiếm 4174 thì set `PORT` khác lúc test)
+- [ ] Health xanh: Python từ `runtime\`, browser Edge/Chrome, **không cần ffprobe**
+- [ ] Full flow: upload → Language → **Transcribe tải model ~3GB thật** → Review → Save →
+      Style (kể cả upload font) → Render → `video_subbed.mp4`
+- [ ] Soi zip: không `.venv/`, `storage/`, `.work/`, rác QA
+- [ ] Nguồn: `typecheck` ✅ `build` ✅ `doctor` ✅ · dọn `%TEMP%` (~4GB)
+
+### B5. Commit cuối + báo cáo — chưa làm
+
+- [ ] Commit: `feat: gói portable zero-install + bỏ phụ thuộc ffprobe`
+- [ ] Báo user: đường dẫn zip, dung lượng, cách gửi, cách rebuild
 
 ---
 
@@ -121,14 +137,13 @@ không Docker · không kèm model · có Git commit.
 
 | Rủi ro | Xử lý |
 |---|---|
-| **B1 fail** (Python embeddable không chạy được torch/ct2) | Dừng → user chọn: (a) giữ prereq Python + `setup.mjs`, (b) Docker |
-| pip resolve transitive lệch so với `.venv` đang chạy | E2E b4 sẽ bắt; pin thêm gói nếu cần |
-| media-parser chưa đọc được container lạ | fallback `ffprobe` + lỗi tiếng Việt đã có |
-| allow-list thiếu file lẻ | E2E từ zip sẽ lộ ngay → bổ sung |
-| Remotion không tìm thấy browser ở máy bạn tôi | `getBrowserExecutable()` đã detect Edge (có sẵn mọi máy Win) → fallback Remotion tự tải headless shell |
+| B1(g) fail (2-pass không chạy trên embeddable) | Dừng → user chọn: (a) giữ prereq Python + `npm run setup`, (b) Docker |
+| pip resolve transitive lệch `.venv` | E2E B4 bắt; pin thêm gói nếu cần |
+| media-parser chưa đọc container lạ | fallback `ffprobe` + lỗi tiếng Việt |
+| allow-list thiếu file | E2E từ zip lộ ngay → bổ sung |
+| Không có browser ở máy bạn tôi | Edge đã detect sẵn (mọi máy Win) → fallback Remotion tự tải |
 
-## Tiêu chí hoàn thành (Definition of Done)
-1. Repo sạch: `git status` sạch, không file chết, typecheck+build pass
-2. `release/sub-tool-win64-1.0.0.zip` tồn tại, ~1.2GB
-3. E2E từ zip chạy đủ flow ra `video_subbed.mp4` trên môi trường sạch %TEMP%
-4. User biết 2 câu: cách gửi zip, cách rebuild
+## Tiêu chí hoàn thành (Definition of Done) — Phase B
+1. `release/sub-tool-win64-1.0.0.zip` tồn tại, ~1.2GB
+2. E2E từ zip chạy đủ flow ra `video_subbed.mp4` trên `%TEMP%` sạch
+3. Commit cuối + user biết cách gửi / cách rebuild
