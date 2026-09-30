@@ -381,3 +381,18 @@ export const openStep = (step: StepId) => {
   if (s.job.status === 'running') return;
   setStep(step);
 };
+
+/**
+ * "Video mới" — xóa toàn bộ state (kể cả phiên đã nhớ trong localStorage)
+ * và quay về bước upload. Hỏi trước khi đang có tiến trình chạy.
+ */
+export const resetAll = () => {
+  const s = getState();
+  if (s.job.status === 'running') {
+    if (!window.confirm('Đang có tiến trình chạy. Dừng và làm video mới?')) return;
+  } else if (s.video) {
+    if (!window.confirm('Làm video mới? Toàn bộ phụ đề hiện tại sẽ bị xóa.')) return;
+  }
+  resetWorkflow();
+  forgetVideo();
+};

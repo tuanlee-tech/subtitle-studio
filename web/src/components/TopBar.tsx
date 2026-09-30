@@ -1,5 +1,6 @@
-import {CaretDown, Compass, Play, Sun} from '@phosphor-icons/react';
+import {Compass, Play, PlusCircle} from '@phosphor-icons/react';
 import {startGuide} from '../guide';
+import {resetAll} from '../actions';
 
 export const TopBar = () => (
   <header className="topbar">
@@ -13,15 +14,18 @@ export const TopBar = () => (
       </div>
     </div>
     <div className="topbar__actions">
+      <button type="button" className="topbar__new" onClick={resetAll}>
+        <PlusCircle size={17} weight="bold" />
+        Video mới
+      </button>
       <button type="button" className="topbar__help" data-guide="guide-help" onClick={startGuide}>
         <Compass size={17} weight="bold" />
         Hướng dẫn
       </button>
-      <Sun size={20} />
+
       <div className="user">
         <span className="avatar">LT</span>
-        <span>Lê Tuấn</span>
-        <CaretDown size={14} />
+        <span>Lê Tuân</span>
       </div>
     </div>
   </header>

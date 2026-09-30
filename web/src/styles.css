@@ -1295,6 +1295,26 @@ button {
 
 /* -------------------------------------------------------- guided tour */
 
+.topbar__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.topbar__new:hover {
+  border-color: var(--accent);
+  background: #fff;
+}
+
 .topbar__help {
   display: inline-flex;
   align-items: center;
