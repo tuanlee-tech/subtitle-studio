@@ -1,17 +1,11 @@
 # Hướng dẫn clone sang máy mới
 
 > Mục tiêu: từ máy trống → chạy được dashboard ở `http://localhost:5173`.
-> Thời gian ước tính: ~10 phút cài công cụ + ~15 phút tải (npm/pip) + ~3GB tải model lúc bấm Transcribe.
-
-## 0. Máy cũ (trước khi đổi máy)
-
-Repo hiện **chưa push** (3 commit local, `origin/main` chưa tồn tại):
-
-```bash
-git push -u origin main
-```
+> Thời gian ước tính: ~10 phút cài Node/Python + ~15–20 phút chạy setup (npm + pip + model ~3GB).
 
 ## 1. Cài sẵn trên máy mới
+
+Chỉ cần 2 thứ bắt buộc: **Node.js ≥ 20** và **Python 3.10–3.12**. Phần còn lại script tự cài.
 
 **Windows**
 
@@ -25,16 +19,17 @@ git push -u origin main
 
 ```bash
 sudo apt update
-sudo apt install -y git ffmpeg python3.12 python3.12-venv
+sudo apt install -y git python3.12 python3.12-venv
 # Node 20+ (Ubuntu 24.04 apt còn node 18): dùng nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.nvm/nvm.sh && nvm install 20
 ```
 
-`python3.12-venv` là tùy chọn: thiếu nó `npm run setup` vẫn tự nạp pip qua mạng.
+`python3.12-venv` là tùy chọn: thiếu nó `setup` vẫn tự nạp pip qua mạng.
 
 - Mạng ổn định (lần đầu tải: npm ~750MB, pip ~2-3GB, model ~3GB).
-- **Không cần**: Docker, Chrome, Visual Studio — tất cả đều tùy chọn hoặc tự tải.
+- **Không cần**: Docker, Chrome, Visual Studio, ffmpeg — tất cả đều tùy chọn hoặc tự tải.
+  (Metadata video đọc bằng `@remotion/media-parser`; ffprobe chỉ là fallback.)
 
 ## 2. Clone
 
@@ -55,17 +50,22 @@ git clone git@github.com:tuanlee-tech/subtitle-studio.git
 ## 3. Cài dependencies + môi trường (1 lệnh)
 
 ```bash
-npm run setup
+./setup.sh          # Windows: setup.cmd  ·  hoặc: npm run setup
 ```
 
 Lệnh này tự làm đủ (chạy được cả khi `node_modules` chưa có):
 
-1. `npm install` → dependencies Node;
+1. kiểm tra Node (thiếu → báo đúng lệnh cài) → `npm install`;
 2. tìm Python 3.10–3.12 → tạo `.venv`;
 3. `pip install -r requirements.txt` (torch CPU, faster-whisper, transformers…);
-4. in checklist: Node / Python / ffprobe / browser / model / node_modules.
+4. **tải sẵn model AI ~3GB** (PhoASR + BuzzASR) vào `models/`;
+5. in checklist: Node / Python / ffprobe (tùy chọn) / browser / model / node_modules.
 
 Dòng cuối phải là `Sẵn sàng. Chạy tiếp:` — nếu có dấu `[!!]`, làm theo gợi ý ngay dòng đó, hoặc chạy lại `npm run doctor`.
+
+> Mạng yếu, không muốn tải model ngay: `npm run setup -- --skip-model` —
+> model sẽ tự tải lần đầu bấm **Transcribe**. Chạy lại `npm run setup` sau
+> để tải bổ sung (phần đã có tự bỏ qua).
 
 ## 4. Chạy
 
@@ -80,9 +80,9 @@ Dừng: Ctrl+C (đóng hẳn process, đừng để dồn port — xem mục L�
 
 | Việc | Chi tiết |
 |---|---|
-| Bấm **Transcribe** lần đầu | Tải model ~3GB (PhoASR + BuzzASR) → lưu vào cache HuggingFace + `models/` — **1 lần duy nhất**, lần sau chạy ngay |
+| Bấm **Transcribe** | Model đã có sẵn trong `models/` (setup tải rồi) → chạy ngay |
 | Bấm **Render** lần đầu | Chưa cài Chrome/Edge thì Remotion tự tải headless shell (cần mạng) |
-| Bước Upload báo thiếu ffprobe | Chưa có metadata → **cài ffmpeg**: Ubuntu `sudo apt install ffmpeg` · Windows `winget install Gyan.FFmpeg` |
+| Bước Upload báo "Không đọc được metadata video" | File hỏng hoặc định dạng lạ → cài ffmpeg mở đường fallback: Ubuntu `sudo apt install ffmpeg` · Windows `winget install Gyan.FFmpeg` |
 | `storage/` | Tự tạo khi server khởi động — không có trong repo |
 
 ## 6. Kiểm tra mọi lúc
@@ -106,13 +106,14 @@ Xem bảng đầy đủ ở [README.md](README.md) (mục "Lỗi thường gặp
 | Triệu chứng | Cách xử lý |
 |---|---|
 | `Không tìm thấy Python 3.10-3.12` | Ubuntu: `sudo apt install python3.12 python3.12-venv` · Windows: cài Python 3.12, tick Add to PATH, mở lại terminal |
-| `npm run setup` fail khi tạo `.venv` | Thiếu `ensurepip` → `sudo apt install python3.12-venv`, hoặc để setup tự nạp pip (cần mạng) |
+| `setup` fail khi tạo `.venv` | Thiếu `ensurepip` → `sudo apt install python3.12-venv`, hoặc để setup tự nạp pip (cần mạng) |
 | `pip install thất bại` ở torch | Giữ nguyên dòng `--extra-index-url .../whl/cpu` trong `requirements.txt` |
+| Setup báo "Tải model thất bại" | Mạng lúc đó — app vẫn dùng được, chạy lại `npm run setup` |
 | Health `ok:false` ở Transcribe | `.venv` gãy → chạy lại `npm run setup` |
 | Port 5173/4174 đã dùng | Ubuntu: `lsof -ti:5173 -ti:4174 \| xargs -r kill` · Windows: `netstat -ano \| findstr :5173` rồi `taskkill /PID <pid> /F` |
 
 ## Ghi chú
 
 - Code đã tách `storage/`, `models/`, `.venv/`, `node_modules/` khỏi git → clone về là rỗng, phần này máy tự dựng lại.
-- Muốn kéo code mới trên máy mới: `git pull`.
+- Muốn kéo code mới trên máy mới: `git pull` (rồi `npm run setup` lại nếu dependencies đổi).
 - Chi tiết kế hoạch/dự án: [PLAN.md](PLAN.md).

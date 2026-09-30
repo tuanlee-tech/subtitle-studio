@@ -25,6 +25,7 @@
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@remotion/bundler": "^4.0.529",
+    "@remotion/media-parser": "^4.0.529",
     "@remotion/cli": "^4.0.529",
     "@remotion/renderer": "^4.0.529",
     "commander": "^15.0.0",

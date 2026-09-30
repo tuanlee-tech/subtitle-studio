@@ -1,18 +1,20 @@
-# PLAN — Dọn dẹp repo → Git commit → Gói Portable Zero-Install
+# PLAN — Dọn dẹp repo → Git commit → Clone & cài 1 lệnh
 
-**Mục tiêu cuối:** gửi bạn `release/sub-tool-win64-1.0.0.zip` (~1.2GB) → họ giải nén →
-bấm đúp `start.cmd` → trình duyệt mở `http://localhost:4174` → dùng đủ 7 bước UI.
-**Không cài Node, không cài Python, không cài ffmpeg, không mở terminal.**
+**Mục tiêu cuối (mới):** người dùng `git clone` → chạy `./setup.sh` (Windows: `setup.cmd`)
+→ `npm run dev` → dùng đủ 7 bước UI. Chỉ cần sẵn Node ≥ 20 + Python 3.10–3.12.
 
-Đã chốt với user: Windows 64-bit · zip ~1.2GB · model tải mạng lần đầu · không Docker ·
-không kèm model · có Git commit.
+Đã chốt với user (2026-09-30): bỏ hướng portable zip, thay bằng clone + setup script ·
+model tải luôn trong setup (có `--skip-model`) · bỏ bắt buộc ffprobe (dùng
+`@remotion/media-parser`, ffprobe chỉ là fallback) · có Git commit.
 
 > ## TRẠNG THÁI HIỆN TẠI
 > - **Phase A — HOÀN TẤT** (commit `f3d7f66`, 65 file, working tree sạch).
-> - **Phase B — TẠM HOÃN theo yêu cầu user** ("viết vào plan, khi khác làm").
->   B1 (spike) đang **~90% đạt**: Python embeddable đã chạy được với đủ 43 gói,
->   chỉ còn 1 test cuối chưa làm xong → xem chi tiết B1 bên dưới.
-> - Khi quay lại: **bắt đầu từ nốt B1 (chạy transcribe với `video.mp4`)** rồi B2 → B5.
+> - **Phase B (portable) — ĐÃ HỦY** theo quyết định user (2026-09-30): thay bằng hướng
+>   clone + setup script. Lý do: cross-build Windows zip từ Ubuntu không verify được —
+>   pip cross-resolve sai marker `platform_system == "Linux"` (kéo nvidia-cudnn 412MB rồi
+>   chốt `nvidia-nccl-cu3`), không chạy được `python.exe` để test embeddable, không có Wine.
+>   Toàn bộ kiến thức spike B1 vẫn giữ ở dưới làm tài liệu.
+> - **Phase C — Clone & setup 1 lệnh — HOÀN TẤT** (xem mục Phase C bên dưới).
 
 ---
 
@@ -46,11 +48,10 @@ user có thể tự chạy `npm run dev` bình thường.
 
 ---
 
-## Phase B — Gói Portable Zero-Install ⏸ TẠM HOÃN
+## Phase B — Gói Portable Zero-Install ❌ ĐÃ HỦY (2026-09-30)
 
-> **Làm tiếp khi quay lại:** chạy nốt B1(g) → xác nhận PASS → B2 → B3 → B4 → B5.
-> Toàn bộ artifact của spike còn nguyên vẹn trong `.work/runtimes/` (~1GB, gitignored)
-> nên **không phải tải/cài lại gì**.
+> **ĐÃ HỦY** — không làm tiếp. `.work/runtimes/` đã bị xóa; kiến thức spike giữ
+> nguyên bên dưới làm tài liệu. Thay thế bằng Phase C (clone & setup 1 lệnh).
 
 ### B1. SPIKE — test Python embeddable (cổng quyết định) — ⏸ ~90%
 
@@ -147,3 +148,41 @@ Kiến thức rút ra từ spike (đừng quên):
 1. `release/sub-tool-win64-1.0.0.zip` tồn tại, ~1.2GB
 2. E2E từ zip chạy đủ flow ra `video_subbed.mp4` trên `%TEMP%` sạch
 3. Commit cuối + user biết cách gửi / cách rebuild
+
+---
+
+## Phase C — Clone & setup 1 lệnh ✅ HOÀN TẤT (2026-09-30)
+
+Thay thế Phase B (portable) theo quyết định user. Mục tiêu: `git clone` →
+`./setup.sh` (Windows: `setup.cmd`) → `npm run dev`.
+
+- [x] **C1. `lib/probe.mjs`** — metadata video bằng `@remotion/media-parser`
+      (`dimensions/durationInSeconds/fps/slowFps/audioCodec/container/videoCodec`
+      + `fs.stat` cho size, bitRate tự tính), fallback `ffprobe`, lỗi tiếng Việt
+      khi cả hai fail. `@remotion/media-parser` nâng thành dep trực tiếp.
+      Verify: mp4/webm/mov/mkv đọc đúng (webm/mkv cần `slowFps` vì header
+      không lưu fps — `fps` field trả null); file hỏng báo lỗi đúng; chạy
+      khi PATH không có ffprobe vẫn OK.
+- [x] **C2. `server/probe.js`** re-export `lib/probe.mjs`; `cli.mjs` bỏ
+      `ffprobe -version` cứng, dùng chung `probeVideo` (giờ là async);
+      `server/index.js` health thêm `node`, ffprobe ghi rõ tùy chọn.
+- [x] **C3. `scripts/prefetch-models.py`** — tải sẵn model AI bằng cách gọi
+      lại đúng `resolve_local_model()` của `transcribe.py` (text pass
+      `Qualcomm-AI-Research/PhoASR-whisper-small` + timing `BuzzASR/vietnamese`).
+      Model bản dịch `Helsinki-NLP/opus-mt-*` giữ lazy theo cặp ngôn ngữ.
+- [x] **C4. `scripts/setup.mjs`** — thêm bước prefetch model (mặc định,
+      `--skip-model` để bỏ qua); skip `pip install` khi env đã OK (lần 2
+      chạy < 1s); model fail → warn không block; dòng ffprobe trong checklist
+      thành tùy chọn.
+- [x] **C5. `setup.sh` + `setup.cmd`** ở root — tự kiểm Node, báo đúng lệnh cài
+      (`nvm install 20` / `winget install OpenJS.NodeJS.LTS`) khi thiếu, rồi
+      chạy `node scripts/setup.mjs`.
+- [x] **C6. Tài liệu** — README mục A → "Clone & cài 1 lệnh" (bỏ mục portable),
+      prereq còn Node + Python, ffmpeg tùy chọn; CLONE.md cập nhật; Phase B
+      đánh dấu hủy.
+- [x] **C7. Verify Ubuntu** — `rm -rf node_modules .venv && ./setup.sh` sạch
+      (npm + venv + pip + model + checklist) ✅ · probe 4 định dạng ✅ ·
+      `npm run typecheck` ✅ · `npm run build` ✅ · `node scripts/qa-ui.mjs` ✅.
+
+**Chưa verify:** `setup.cmd` trên Windows thật (không có máy Windows ở đây) —
+cần chạy 1 lần trên máy bạn tôi.

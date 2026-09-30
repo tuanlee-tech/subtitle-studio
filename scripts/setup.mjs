@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Kiểm tra / chuẩn bị môi trường dev.
- *   npm run setup   : tạo .venv (nếu thiếu) + cài requirements.txt + in checklist
- *   npm run doctor  : chỉ in checklist, không cài gì
+ * Kiểm tra / chuẩn bị môi trường dev — lệnh cài duy nhất sau khi clone.
+ *   npm run setup            : npm install + .venv + requirements.txt + tải model AI + checklist
+ *   npm run setup -- --skip-model : bỏ bước tải model (~3GB), tải lazy lần đầu bấm Transcribe
+ *   npm run doctor           : chỉ in checklist, không cài gì
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,6 +12,7 @@ import {PROJECT_DIR, checkCommand, checkPython, resolvePython} from '../server/e
 import {getBrowserExecutable} from '../lib/render.mjs';
 
 const CHECK_ONLY = process.argv.includes('--check');
+const SKIP_MODEL = process.argv.includes('--skip-model');
 const isWin = process.platform === 'win32';
 const VENV_DIR = path.join(PROJECT_DIR, '.venv');
 const VENV_PYTHON = path.join(VENV_DIR, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
@@ -157,12 +159,29 @@ const main = () => {
 
   if (!CHECK_ONLY) {
     if (!fs.existsSync(VENV_PYTHON)) die(`.venv chưa sẵn sàng (thiếu ${VENV_PYTHON}).`);
-    console.log('-> Cài Python packages theo requirements.txt (lần đầu mất vài phút) ...');
-    const res = run(VENV_PYTHON, ['-m', 'pip', 'install', '-r', REQUIREMENTS], {
-      stdio: 'inherit',
-      timeout: 30 * 60 * 1000,
-    });
-    if (res.status !== 0) die('pip install thất bại - xem lỗi ở trên.');
+    if (before.ok) {
+      console.log('-> Python packages đã cài đầy đủ, bỏ qua pip install.');
+    } else {
+      console.log('-> Cài Python packages theo requirements.txt (lần đầu mất vài phút) ...');
+      const res = run(VENV_PYTHON, ['-m', 'pip', 'install', '-r', REQUIREMENTS], {
+        stdio: 'inherit',
+        timeout: 30 * 60 * 1000,
+      });
+      if (res.status !== 0) die('pip install thất bại - xem lỗi ở trên.');
+    }
+
+    if (SKIP_MODEL) {
+      console.log('-> Bỏ qua tải model (--skip-model) — model sẽ tự tải lần đầu bấm Transcribe.');
+    } else {
+      console.log('-> Tải sẵn model AI (~3GB, một lần; mạng yếu nên mất vài chục phút) ...');
+      const res = run(VENV_PYTHON, [path.join(PROJECT_DIR, 'scripts', 'prefetch-models.py')], {
+        stdio: 'inherit',
+        timeout: 60 * 60 * 1000,
+      });
+      if (res.status !== 0) {
+        console.log(`\n${WARN} Tải model thất bại — app vẫn dùng được, model sẽ tự tải lần đầu bấm Transcribe.\n`);
+      }
+    }
   }
 
   const py = checkPython();
@@ -176,7 +195,12 @@ const main = () => {
     add(BAD, 'Python (.venv)', 'không dùng được', CHECK_ONLY ? `chạy: npm run setup (${firstError})` : firstError);
   }
   const ffprobe = checkCommand('ffprobe');
-  add(ffprobe ? OK : WARN, 'ffprobe', ffprobe ? 'có' : 'không', 'bước Upload video (Ubuntu: sudo apt install ffmpeg)');
+  add(
+    ffprobe ? OK : WARN,
+    'ffprobe',
+    ffprobe ? 'có' : 'không (dùng media-parser)',
+    ffprobe ? null : 'tùy chọn — chỉ là fallback khi media-parser đọc không được',
+  );
   const browser = getBrowserExecutable();
   add(browser ? OK : WARN, 'Browser (render)', browser ? path.basename(browser) : 'không thấy', browser ? null : 'Remotion sẽ tự tải headless shell khi render');
   const modelReady = fs.existsSync(path.join(PROJECT_DIR, 'models', 'BuzzASR-vietnamese', 'model.bin'));

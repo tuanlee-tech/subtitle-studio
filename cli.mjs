@@ -24,6 +24,7 @@ import {fileURLToPath} from 'node:url';
 import {Command} from 'commander';
 import {buildCues, loadSubtitleFont, stabilizeSegmentTimings} from './lib/layout.mjs';
 import {getBrowserExecutable} from './lib/render.mjs';
+import {probeVideo} from './server/probe.js';
 import {resolvePython} from './server/env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -170,37 +171,6 @@ const collectWords = (result) => {
   return words;
 };
 
-// ---------- Video metadata ----------
-
-const probeVideo = (video) => {
-  const check = spawnSync('ffprobe', ['-version'], {encoding: 'utf8'});
-  if (check.error || check.status !== 0) {
-    die(
-      'ffprobe not found — install ffmpeg first (Ubuntu/Debian: `sudo apt install ffmpeg` · Windows: `winget install Gyan.FFmpeg`)',
-    );
-  }
-  const out = runCapture(
-    'ffprobe',
-    ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', video],
-    {maxBuffer: 16 * 1024 * 1024},
-  );
-  const info = JSON.parse(out);
-  const v = (info.streams ?? []).find((s) => s.codec_type === 'video');
-  if (!v) die('no video stream found');
-  const [num, den] = (v.avg_frame_rate ?? v.r_frame_rate ?? '30/1').split('/').map(Number);
-  const fps = den ? num / den : 30;
-  const durationSec = Number(info.format?.duration ?? 0);
-  if (!durationSec) die('could not determine video duration');
-  const hasAudio = (info.streams ?? []).some((s) => s.codec_type === 'audio');
-  return {
-    width: v.width,
-    height: v.height,
-    fps: Math.round(fps * 1000) / 1000,
-    durationSec,
-    hasAudio,
-  };
-};
-
 // ---------- Main ----------
 
 const program = new Command();
@@ -237,7 +207,7 @@ const outSrt = path.resolve(opts.srt ?? `${base}.srt`);
 if (outVideo === video) die('output path must differ from input');
 
 log(`Input:   ${video}`);
-const meta = probeVideo(video);
+const meta = await probeVideo(video);
 log(
   `Video:   ${meta.width}x${meta.height} @ ${meta.fps}fps, ${meta.durationSec.toFixed(2)}s, audio: ${meta.hasAudio ? 'yes' : 'NO'}`,
 );

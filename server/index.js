@@ -46,6 +46,9 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: python.ok,
     python,
+    node: process.version,
+    // Tùy chọn — lib/probe.mjs đọc metadata bằng @remotion/media-parser,
+    // ffprobe chỉ là đường fallback.
     ffprobe: checkCommand('ffprobe'),
     resolvePython: resolvePython(),
     remotionBrowser: process.env.REMOTION_BROWSER ?? null,
@@ -132,7 +135,7 @@ app.post('/api/uploads', (req, res) => {
         '── tải video lên ──',
         `tệp        : ${name}`,
         `kích thước : ${(received / 1024 / 1024).toFixed(2)} MB${total ? ` · ${slices} lượt × ${(sliceBytes / 1024 / 1024).toFixed(0)}MB` : ''}`,
-        `ffprobe    : ${checkCommand('ffprobe') ? 'có' : 'KHÔNG tìm thấy'}`,
+        `ffprobe    : ${checkCommand('ffprobe') ? 'có' : 'không (dùng media-parser)'}`,
         `định dạng  : ${payload.formatName} · ${payload.width}x${payload.height} @ ${payload.fps}fps · ${payload.durationSec}s`,
         `âm thanh   : ${payload.hasAudio ? 'có' : 'KHÔNG có — bước tạo SRT sẽ thất bại'}`,
         `mã video   : ${id}`,

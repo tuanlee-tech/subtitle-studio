@@ -8,25 +8,30 @@ Công cụ tạo phụ đề video chạy hoàn toàn trên máy local — khôn
 
 ---
 
-## A. Dùng ngay — không cần cài gì
+## A. Clone & cài 1 lệnh
 
-> Yêu cầu duy nhất: **Windows 64-bit**. Không cần Node, Python, ffmpeg, Chrome, không mở terminal.
-> *(Trên Ubuntu hiện chưa có gói portable — cài Node + Python rồi chạy mục B.)*
+> Chạy được trên **Windows 10/11** và **Ubuntu 22.04+** (đã test trên Ubuntu 24.04).
+> Chỉ cần sẵn **Node.js ≥ 20** và **Python 3.10–3.12** — phần còn lại script tự cài.
 
-1. Tải `sub-tool-win64-<phiên bản>.zip` (~1.2GB)
-2. Giải nén vào bất kỳ thư mục nào (vd: `C:\sub-tool`)
-3. Bấm đúp **`start.cmd`** → trình duyệt tự mở `http://localhost:4174`
-4. Dùng 7 bước như bình thường
+```bash
+git clone https://github.com/tuanlee-tech/subtitle-studio.git
+cd subtitle-studio
+./setup.sh            # Windows: setup.cmd  ·  hoặc: npm run setup
+```
+
+`setup` tự làm hết: `npm install` → tạo `.venv` → `pip install` → **tải sẵn model AI ~3GB**
+→ in checklist. Lần đầu mất ~15–20 phút (tùy mạng), chạy lại sau chỉ vài giây.
 
 **Ghi chú:**
 
 | Việc | Chi tiết |
 |---|---|
-| Lần đầu bấm **Transcribe** | Tải model AI ~3GB (một lần duy nhất, cần mạng) — xem cột `models/` |
+| Chưa cài Node/Python | `setup.sh`/`setup.cmd` tự báo đúng lệnh cài (xem mục B bên dưới) |
+| Mạng yếu, không muốn tải model ngay | `npm run setup -- --skip-model` — model tự tải lần đầu bấm **Transcribe** |
 | Chưa cài Chrome/Edge | Remotion tự tải headless shell lúc render lần đầu (cần mạng) |
-| Chưa cài ffprobe/ffmpeg | **Không cần** — bản portable đã bỏ qua bước này |
-| Muốn dừng app | Đóng cửa sổ console do `start.cmd` mở ra |
-| Dữ liệu của bạn | Nằm trong `storage/` ngay trong thư mục giải nén |
+| Chưa cài ffprobe/ffmpeg | **Không cần** — metadata video đọc bằng `@remotion/media-parser`, ffprobe chỉ là fallback |
+| Muốn dừng app | Đóng cửa sổ console / terminal đang chạy |
+| Dữ liệu của bạn | Nằm trong `storage/` ngay trong thư mục project |
 
 ---
 
@@ -36,13 +41,11 @@ Công cụ tạo phụ đề video chạy hoàn toàn trên máy local — khôn
 
 ### Yêu cầu hệ thống
 
-Chạy được trên **Windows 10/11** và **Ubuntu 22.04+** (đã test trên Ubuntu 24.04).
-
 | Thành phần | Windows | Ubuntu |
 |---|---|---|
 | **Node.js ≥ 20** (bắt buộc) | https://nodejs.org | `sudo apt install nodejs` (hoặc nvm) |
 | **Python 3.10 – 3.12** (bắt buộc) | https://www.python.org (tick *Add to PATH*) | `sudo apt install python3.12 python3.12-venv` |
-| ffprobe/ffmpeg — cần ở bước **Upload** | `winget install Gyan.FFmpeg` | `sudo apt install ffmpeg` |
+| ffprobe/ffmpeg — **tùy chọn** | `winget install Gyan.FFmpeg` | `sudo apt install ffmpeg` |
 | Chrome/Edge/Chromium — cho render | có sẵn Edge | `sudo apt install chromium-browser` *(không cài thì Remotion tự tải)* |
 
 > Ubuntu thiếu gói `python3.x-venv` vẫn chạy được: `npm run setup` sẽ tự tạo `.venv` không kèm pip
@@ -51,8 +54,7 @@ Chạy được trên **Windows 10/11** và **Ubuntu 22.04+** (đã test trên U
 ### Cài đặt & chạy
 
 ```bash
-npm install          # dependencies Node (~750MB)
-npm run setup        # tạo .venv + cài 5 gói Python + kiểm tra môi trường
+npm run setup        # = ./setup.sh / setup.cmd: mọi thứ ở mục A
 npm run dev          # → http://localhost:5173  (UI, mở URL này)
 ```
 
@@ -87,15 +89,6 @@ Biến môi trường tùy chọn:
 | `SUBTOOL_WORKERS` | `min(4, CPU−1, RAM/4GB)` | số worker song song của bước tạo SRT |
 | `SUBTOOL_CHUNK_SEC` | `60` | độ dài mỗi đoạn tính bằng giây (tối thiểu 10) |
 
-### Gói portable (gửi cho người khác)
-
-> **Chưa chạy được.** `package.json` có script `build-portable` nhưng
-> `scripts/build-portable.mjs` **chưa tồn tại** (Phase B trong [PLAN.md](PLAN.md) đang tạm hoãn).
-> Khi nào cần, làm theo mục B3 của PLAN.
-
-Khi hoàn thành, lệnh này sẽ sinh `release/sub-tool-win64-<ver>.zip` (~1.2GB) — gói có sẵn
-runtime Node + Python embeddable, người nhận chỉ giải nén và bấm `start.cmd`.
-
 ### CLI (không qua giao diện)
 
 ```bash
@@ -109,6 +102,7 @@ npm run sub -- video.mp4 --lang vi --yes  # bỏ qua bước hỏi
 npm run typecheck    # TypeScript
 npm run build        # vite build
 npm run doctor       # checklist môi trường
+./setup.sh           # hoặc npm run setup — cài lại từ đầu (idempotent)
 node scripts/qa-ui.mjs      # test UI qua Chrome headless (cần Chrome + server đang chạy)
 node scripts/qa-guide.mjs   # test tour hướng dẫn
 ```
@@ -120,7 +114,7 @@ node scripts/qa-guide.mjs   # test tour hướng dẫn
 | `server/` | API Express (4174): upload, transcribe, translate, render, fonts |
 | `web/` | React UI (7 bước) — build ra `web/dist` |
 | `src/` + `lib/` | Dựng hình Remotion (composition burn-in, layout, style) |
-| `scripts/` | pipeline Python (transcribe/translate/detect), setup, QA, pack |
+| `scripts/` | pipeline Python (transcribe/translate/detect), setup, prefetch model, QA |
 | `public/` | Font Baloo2 + font người dùng tải lên |
 | `models/` | CT2 model đã convert (tự tạo khi chạy lần đầu) |
 | `storage/` | Job của bạn: video, transcript, srt, output |
@@ -132,8 +126,9 @@ node scripts/qa-guide.mjs   # test tour hướng dẫn
 |---|---|
 | Health `ok:false`, lỗi Python ở bước Transcribe | `.venv` thiếu/gãy → `npm run setup` |
 | Health báo `thiếu transformers, sentencepiece` | `.venv` chưa đủ gói → `npm run setup` |
-| "Không tìm thấy ffprobe" ở bước Upload | Windows: `winget install Gyan.FFmpeg` · Ubuntu: `sudo apt install ffmpeg` |
 | `npm run setup` báo thiếu ensurepip / `python3-venv` | Ubuntu: `sudo apt install python3.12-venv`, hoặc bỏ qua — setup tự nạp pip qua mạng |
+| Setup báo "Tải model thất bại" | Mạng lúc đó — app vẫn dùng được, model tự tải lần đầu bấm Transcribe; hoặc chạy lại `npm run setup` |
+| Upload báo "Không đọc được metadata video" | File hỏc hoặc định dạng lạ — thử cài ffmpeg (`sudo apt install ffmpeg` / `winget install Gyan.FFmpeg`) để mở đường fallback |
 | Transcribe lần đầu rất chậm | Đang tải model ~3GB vào `models/` + cache HuggingFace |
 | Render báo thiếu browser | Để trống — Remotion tự tải, hoặc cài Chrome/Edge |
 | `pip` fail khi cài `torch==...+cpu` | Đừng xóa dòng `--extra-index-url .../whl/cpu` trong `requirements.txt` |
