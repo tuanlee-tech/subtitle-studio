@@ -13,14 +13,28 @@ git push -u origin main
 
 ## 1. Cài sẵn trên máy mới
 
+**Windows**
+
 | Phần | Yêu cầu | Tải |
 |---|---|---|
 | Git | bất kỳ bản nào | https://git-scm.com/download/win |
 | Node.js | **≥ 20** (LTS là đủ) | https://nodejs.org |
-| Python | **3.10 – 3.12** (3.12 như máy cũ), tick **Add python.exe to PATH** | https://www.python.org/downloads/ |
+| Python | **3.10 – 3.12**, tick **Add python.exe to PATH** | https://www.python.org/downloads/ |
+
+**Ubuntu 22.04 / 24.04**
+
+```bash
+sudo apt update
+sudo apt install -y git ffmpeg python3.12 python3.12-venv
+# Node 20+ (Ubuntu 24.04 apt còn node 18): dùng nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.nvm/nvm.sh && nvm install 20
+```
+
+`python3.12-venv` là tùy chọn: thiếu nó `npm run setup` vẫn tự nạp pip qua mạng.
 
 - Mạng ổn định (lần đầu tải: npm ~750MB, pip ~2-3GB, model ~3GB).
-- **Không cần**: Docker, ffmpeg, Chrome, Visual Studio — tất cả đều tùy chọn hoặc tự tải.
+- **Không cần**: Docker, Chrome, Visual Studio — tất cả đều tùy chọn hoặc tự tải.
 
 ## 2. Clone
 
@@ -68,7 +82,7 @@ Dừng: Ctrl+C (đóng hẳn process, đừng để dồn port — xem mục L�
 |---|---|
 | Bấm **Transcribe** lần đầu | Tải model ~3GB (PhoASR + BuzzASR) → lưu vào cache HuggingFace + `models/` — **1 lần duy nhất**, lần sau chạy ngay |
 | Bấm **Render** lần đầu | Chưa cài Chrome/Edge thì Remotion tự tải headless shell (cần mạng) |
-| Bước Upload báo thiếu ffprobe | Vẫn chạy được (app tự đọc bằng thư viện trong nước); muốn có thì `winget install Gyan.FFmpeg` |
+| Bước Upload báo thiếu ffprobe | Chưa có metadata → **cài ffmpeg**: Ubuntu `sudo apt install ffmpeg` · Windows `winget install Gyan.FFmpeg` |
 | `storage/` | Tự tạo khi server khởi động — không có trong repo |
 
 ## 6. Kiểm tra mọi lúc
@@ -91,10 +105,11 @@ Xem bảng đầy đủ ở [README.md](README.md) (mục "Lỗi thường gặp
 
 | Triệu chứng | Cách xử lý |
 |---|---|
-| `Không tìm thấy Python 3.10-3.12` | Cài Python 3.12, tick Add to PATH, mở lại terminal |
+| `Không tìm thấy Python 3.10-3.12` | Ubuntu: `sudo apt install python3.12 python3.12-venv` · Windows: cài Python 3.12, tick Add to PATH, mở lại terminal |
+| `npm run setup` fail khi tạo `.venv` | Thiếu `ensurepip` → `sudo apt install python3.12-venv`, hoặc để setup tự nạp pip (cần mạng) |
 | `pip install thất bại` ở torch | Giữ nguyên dòng `--extra-index-url .../whl/cpu` trong `requirements.txt` |
 | Health `ok:false` ở Transcribe | `.venv` gãy → chạy lại `npm run setup` |
-| Port 5173/4174 đã dùng | `netstat -ano | findstr :5173` rồi `taskkill /PID <pid> /F` |
+| Port 5173/4174 đã dùng | Ubuntu: `lsof -ti:5173 -ti:4174 \| xargs -r kill` · Windows: `netstat -ano \| findstr :5173` rồi `taskkill /PID <pid> /F` |
 
 ## Ghi chú
 

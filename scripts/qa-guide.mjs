@@ -13,6 +13,7 @@ import path from 'node:path';
 import process from 'node:process';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {getBrowserExecutable} from '../lib/render.mjs';
 
 const project = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(project, '.work', 'qa');
@@ -20,16 +21,8 @@ const PORT = Number(process.env.QA_PORT ?? 9355);
 const APP_URL = process.env.QA_URL ?? 'http://localhost:5173/';
 const API = process.env.API_URL ?? 'http://localhost:4174';
 
-const CHROME_CANDIDATES = [
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium-browser',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-];
-
-const chromePath = CHROME_CANDIDATES.find((p) => fs.existsSync(p));
-if (!chromePath) throw new Error('Không tìm thấy Chrome để chụp màn hình.');
+const chromePath = getBrowserExecutable();
+if (!chromePath) throw new Error('Không tìm thấy Chrome để chụp màn hình (đặt REMOTION_BROWSER = đường dẫn Chrome).');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

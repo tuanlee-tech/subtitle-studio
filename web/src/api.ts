@@ -2,6 +2,7 @@ import type {FontEntry, JobState, VideoMeta} from './types';
 
 export type JobHandlers = {
   onProgress: (p: {phase: string; percent: number; message: string}) => void;
+  onLog?: (lines: string[]) => void;
   onDone: (result: Record<string, unknown>) => void;
   onError: (message: string) => void;
 };
@@ -16,14 +17,31 @@ const readError = async (res: Response) => {
   }
 };
 
-/** Uploads the raw file with progress (XHR, because fetch has no upload progress). */
-export const uploadVideo = (file: File, onPercent: (pct: number) => void) =>
-  new Promise<VideoMeta>((resolve, reject) => {
+/**
+ * Upload slice size — matches the server's `SLICE_BYTES` (5 MB). QA can shrink
+ * it (`sessionStorage['subtitle-studio:slice']`) to exercise multi-slice uploads
+ * with small files; production never sets it.
+ */
+const SLICE_BYTES = (() => {
+  try {
+    const override = Number(window.sessionStorage.getItem('subtitle-studio:slice'));
+    if (Number.isFinite(override) && override >= 64 * 1024) return Math.floor(override);
+  } catch {
+    /* storage blocked — fall through to the default */
+  }
+  return 5 * 1024 * 1024;
+})();
+const SLICE_RETRIES = 3;
+
+type SliceAck = {id?: string; received?: number; done?: boolean; error?: string};
+
+const sendSlice = (url: string, blob: Blob, onLoaded: (bytes: number) => void) =>
+  new Promise<SliceAck>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/uploads?name=${encodeURIComponent(file.name)}`);
+    xhr.open('POST', url);
     xhr.responseType = 'text';
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onPercent(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) onLoaded(e.loaded);
     };
     xhr.onerror = () => reject(new Error('Không tải được video lên máy chủ.'));
     xhr.onabort = () => reject(new Error('Đã hủy tải video.'));
@@ -34,15 +52,79 @@ export const uploadVideo = (file: File, onPercent: (pct: number) => void) =>
       } catch {
         /* fall through */
       }
-      if (xhr.status >= 200 && xhr.status < 300 && data) return resolve(data as VideoMeta);
+      if (xhr.status >= 200 && xhr.status < 300 && data) return resolve(data as SliceAck);
       const message =
         data && typeof data === 'object' && 'error' in data
           ? String((data as {error: string}).error)
           : `Tải video thất bại (HTTP ${xhr.status}).`;
-      reject(new Error(message));
+      const failure = new Error(message) as Error & {received?: number};
+      if (data && typeof data === 'object' && 'received' in data) {
+        failure.received = Number((data as {received: unknown}).received);
+      }
+      reject(failure);
     };
-    xhr.send(file);
+    xhr.send(blob);
   });
+
+/**
+ * Uploads the raw file in 5 MB slices: a lost connection costs one slice
+ * instead of the whole upload (the browser resumes from the last byte the
+ * server confirmed).
+ */
+export const uploadVideo = async (
+  file: File,
+  onPercent: (pct: number) => void,
+): Promise<VideoMeta> => {
+  const total = file.size;
+  if (!total) throw new Error('Tệp video rỗng.');
+
+  let id = '';
+  let offset = 0;
+  let attempt = 0;
+  let done: SliceAck | null = null;
+
+  while (offset < total) {
+    const end = Math.min(offset + SLICE_BYTES, total);
+    const query = new URLSearchParams({
+      name: file.name,
+      offset: String(offset),
+      total: String(total),
+      slice: String(SLICE_BYTES),
+      ...(id ? {id} : {}),
+    });
+    try {
+      const ack = await sendSlice(
+        `/api/uploads?${query.toString()}`,
+        file.slice(offset, end),
+        (loaded) =>
+          onPercent(Math.round(((offset + Math.min(loaded, end - offset)) / total) * 100)),
+      );
+      if (ack.id) id = ack.id;
+      const received = typeof ack.received === 'number' ? ack.received : end;
+      if (received <= offset) throw new Error('Máy chủ không nhận thêm được dữ liệu.');
+      offset = received;
+      attempt = 0;
+      done = ack;
+    } catch (err) {
+      const failure = err as Error & {received?: number};
+      if (typeof failure.received === 'number' && failure.received < offset) {
+        // The server lost the tail we thought it had — rewind to what it kept.
+        offset = failure.received;
+        attempt = 0;
+        continue;
+      }
+      if (attempt++ < SLICE_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        continue;
+      }
+      throw failure;
+    }
+  }
+
+  onPercent(100);
+  if (!done) throw new Error('Không nhận được thông tin video từ máy chủ.');
+  return {...done, id: (done as {id?: string}).id ?? '', size: total} as VideoMeta;
+};
 
 const FONT_FORMAT: Record<string, string> = {ttf: 'truetype', otf: 'opentype', woff: 'woff', woff2: 'woff2'};
 
@@ -111,6 +193,18 @@ export const fetchSrt = async (videoId: string) => {
   return data.srt;
 };
 
+/** Per-step terminal trails persisted on disk (upload/transcribe/render/save/...). */
+export const fetchLogs = async (videoId: string): Promise<Record<string, string[]>> => {
+  const res = await fetch(`/api/videos/${videoId}/logs`);
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as {logs?: Record<string, string>};
+  const out: Record<string, string[]> = {};
+  for (const [step, text] of Object.entries(data.logs ?? {})) {
+    out[step] = String(text).split(/\r?\n/).filter(Boolean);
+  }
+  return out;
+};
+
 export const saveSrt = async (videoId: string, content: string) => {
   const res = await fetch(`/api/videos/${videoId}/srt`, {
     method: 'POST',
@@ -119,6 +213,31 @@ export const saveSrt = async (videoId: string, content: string) => {
   });
   if (!res.ok) throw new Error(await readError(res));
   return res.json() as Promise<{ok: boolean; message: string}>;
+};
+
+/** Everything a reload needs to rebuild the workflow (meta + SRT + choices). */
+export type VideoState = {
+  meta: VideoMeta;
+  session: {sourceLang?: string; targetLang?: string; look?: unknown};
+  srt: string;
+  hasOutput: boolean;
+};
+
+export const fetchState = async (videoId: string): Promise<VideoState> => {
+  const res = await fetch(`/api/videos/${videoId}/state`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json() as Promise<VideoState>;
+};
+
+/** Persists the choices (languages, look) so a reload can restore them. */
+export const saveSession = async (videoId: string, patch: Record<string, unknown>) => {
+  const res = await fetch(`/api/videos/${videoId}/session`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json() as Promise<{ok: boolean}>;
 };
 
 export const createJob = async (
@@ -148,6 +267,14 @@ export const watchJob = (jobId: string, handlers: JobHandlers) => {
         percent: data.percent ?? 0,
         message: data.message ?? '',
       });
+    } catch {
+      /* ignore malformed frames */
+    }
+  });
+  source.addEventListener('log', (event) => {
+    try {
+      const data = JSON.parse((event as MessageEvent).data) as {lines?: string[]};
+      if (Array.isArray(data.lines) && data.lines.length) handlers.onLog?.(data.lines);
     } catch {
       /* ignore malformed frames */
     }

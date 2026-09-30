@@ -18,6 +18,7 @@ export const StepUpload = () => {
 
   return (
     <StepPanel
+      step="upload"
       icon={<UploadSimple size={22} weight="bold" />}
       title="Tải video lên"
       desc="Chọn video bạn muốn tạo phụ đề — tệp sẽ được xử lý hoàn toàn trên máy của bạn"

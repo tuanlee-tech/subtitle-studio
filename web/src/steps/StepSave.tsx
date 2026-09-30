@@ -13,6 +13,7 @@ export const StepSave = () => {
 
   return (
     <StepPanel
+      step="save"
       icon={<FloppyDisk size={22} weight="bold" />}
       title="Lưu SRT"
       desc="Lưu file phụ đề đã chỉnh sửa để sử dụng cho bước render video"

@@ -16,6 +16,7 @@ export const StepRender = () => {
   if (done) {
     return (
       <StepPanel
+        step="render"
         icon={<CheckCircle size={22} weight="bold" />}
         title="Video đã hoàn thành"
         desc="Phụ đề đã được chèn vào video — xem trước và tải về máy"
@@ -55,6 +56,7 @@ export const StepRender = () => {
 
   return (
     <StepPanel
+      step="render"
       icon={<FilmSlate size={22} weight="bold" />}
       title="Tạo phụ đề cho video"
       desc="Chèn phụ đề vào video theo kiểu bạn đã chọn và tạo bản dựng cuối cùng"

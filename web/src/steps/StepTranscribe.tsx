@@ -1,7 +1,9 @@
-import {CheckCircle, Gear, Info} from '@phosphor-icons/react';
+import {useRef, useState} from 'react';
+import type {ChangeEvent} from 'react';
+import {CheckCircle, FileArrowUp, Gear, Info, UploadSimple} from '@phosphor-icons/react';
 import {StepPanel} from '../components/StepPanel';
 import {ProgressPanel} from '../components/Progress';
-import {openStep, startTranscribe} from '../actions';
+import {importSrtFile, openStep, startTranscribe} from '../actions';
 import {useWorkflow} from '../store';
 import {languageLabel} from '../utils';
 
@@ -10,9 +12,24 @@ export const StepTranscribe = () => {
   const running = state.job.status === 'running';
   const failed = state.job.status === 'error' || state.statuses.transcribe === 'error';
   const done = state.statuses.transcribe === 'completed';
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const onPick = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    try {
+      await importSrtFile(file);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   return (
     <StepPanel
+      step="transcribe"
       icon={<Gear size={22} weight="bold" />}
       title="Tạo SRT"
       desc="Nhận diện lời nói và tạo file phụ đề SRT cho video của bạn"
@@ -44,6 +61,33 @@ export const StepTranscribe = () => {
           </ul>
         </div>
       </div>
+
+      {!done && (
+        <div className="card" style={{marginTop: 16}}>
+          <div className="card__head">
+            <div className="card__icon">
+              <FileArrowUp size={18} weight="bold" />
+            </div>
+            <div>
+              <h3 className="card__title">Đã có file SRT từ phiên trước?</h3>
+              <p className="card__desc">
+                Phiên làm việc trước bị ngắt sau khi tạo xong SRT? Tải file .srt lên để tiếp tục ngay, không cần chờ
+                hệ thống nhận diện lại từ đầu.
+              </p>
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept=".srt,text/plain" hidden onChange={onPick} />
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={() => fileRef.current?.click()}
+            disabled={running || importing}
+          >
+            <UploadSimple size={16} />
+            {importing ? 'Đang kiểm tra file...' : 'Chọn file .srt'}
+          </button>
+        </div>
+      )}
 
       {done && (
         <div className="callout callout--success">

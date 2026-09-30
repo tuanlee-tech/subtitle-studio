@@ -6,8 +6,8 @@ import {cuesFromSrt, cuesFromTranscript, fontSizeForWidth, loadSubtitleFont, max
 import {formatSrt} from '../lib/srt.mjs';
 import {DEFAULT_LOOK, normalizeLook} from '../lib/look.mjs';
 import {fontPath} from './fonts.js';
-import {renderSubtitledVideo} from '../lib/render.mjs';
-import {PHASE_MESSAGES, failJob, finishJob, reportPhase, reportPercent} from './jobs.js';
+import {renderSubtitledVideo, getBrowserExecutable} from '../lib/render.mjs';
+import {PHASE_MESSAGES, appendLog, failJob, finishJob, reportPhase, reportPercent} from './jobs.js';
 
 const PUBLIC_DIR = path.join(PROJECT_DIR, 'public');
 const SCRIPTS_DIR = path.join(PROJECT_DIR, 'scripts');
@@ -24,7 +24,15 @@ const PHASE_PERCENT = {
   translate: 94,
 };
 
-const runProcess = (cmd, args, {onLine, onPhase} = {}) =>
+/** Writes a readable "what was chosen" header into the step's terminal. */
+const logHeader = (job, title, fields) => {
+  appendLog(job, `── ${title} ──`);
+  for (const [key, value] of Object.entries(fields)) {
+    appendLog(job, `${key.padEnd(13, ' ')}: ${value}`);
+  }
+};
+
+const runProcess = (cmd, args, {onLine, onPhase, onPercent} = {}) =>
   new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {cwd: PROJECT_DIR, windowsHide: true});
     let stdout = '';
@@ -43,6 +51,13 @@ const runProcess = (cmd, args, {onLine, onPhase} = {}) =>
           } catch {
             /* ignore malformed markers */
           }
+        } else if (trimmed.startsWith('##PCT##')) {
+          try {
+            const {percent, message} = JSON.parse(trimmed.slice('##PCT##'.length));
+            if (typeof percent === 'number') onPercent?.(percent, message);
+          } catch {
+            /* ignore malformed markers */
+          }
         } else {
           onLine?.(trimmed, isErr);
         }
@@ -51,9 +66,15 @@ const runProcess = (cmd, args, {onLine, onPhase} = {}) =>
     child.stdout.on('data', (d) => handle(d, false));
     child.stderr.on('data', (d) => handle(d, true));
     child.on('error', reject);
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (code === 0) resolve({stdout, stderr});
-      else reject(new Error(tail(stderr) || tail(stdout) || `${path.basename(cmd)} thoát với mã ${code}`));
+      else if (code === null) {
+        // Killed from outside (OOM, Ctrl+C, a manual kill): the trail already
+        // shows where it stopped, so do not dress progress lines up as an error.
+        reject(new Error(`chương trình bị hệ điều hành dừng (${signal ?? 'tín hiệu không rõ'})`));
+      } else {
+        reject(new Error(tail(stderr) || tail(stdout) || `${path.basename(cmd)} thoát với mã ${code}`));
+      }
     });
   });
 
@@ -69,6 +90,16 @@ const tail = (text) =>
 /** Step 3: speech -> transcript -> SRT (+ word timings for the reveal). */
 export const runTranscribe = async ({job, videoPath, dir, meta, sourceLang = 'auto', targetLang = 'vi'}) => {
   reportPhase(job, 'prepare', 5);
+  logHeader(job, 'Tạo SRT (transcribe)', {
+    'video': meta.name,
+    'kích thước': `${meta.width}x${meta.height} @ ${meta.fps}fps · ${meta.durationSec}s`,
+    'ngôn ngữ': `${sourceLang} → ${targetLang}`,
+    'python': resolvePython(),
+    'model text': process.env.SUBTOOL_MODEL ?? '(mặc định: PhoASR)',
+    'timing model': process.env.SUBTOOL_TIMING_MODEL ?? '(mặc định: BuzzASR/vietnamese)',
+    'node': process.version,
+    'lệnh': `transcribe.py ${path.basename(videoPath)} --language ${sourceLang}`,
+  });
 
   const transcriptPath = path.join(dir, 'transcript.json');
   const args = [
@@ -84,7 +115,9 @@ export const runTranscribe = async ({job, videoPath, dir, meta, sourceLang = 'au
 
   await runProcess(resolvePython(), args, {
     onPhase: (phase) => reportPhase(job, phase, PHASE_PERCENT[phase]),
+    onPercent: (percent, message) => reportPercent(job, percent, {phase: job.phase, message}),
     onLine: (line) => {
+      appendLog(job, line);
       if (!/^(Warning|\[transformers\]|converting)/.test(line)) {
         // keep the terminal trail available when debugging a run
         process.stdout.write(`[transcribe] ${line}\n`);
@@ -96,9 +129,11 @@ export const runTranscribe = async ({job, videoPath, dir, meta, sourceLang = 'au
 
   let transcript = JSON.parse(fs.readFileSync(transcriptPath, 'utf8'));
   const detectedLang = transcript.language || 'vi';
+  appendLog(job, `phát hiện ngôn ngữ: ${detectedLang} · ${transcript.segments?.length ?? 0} đoạn`);
 
   if (targetLang && targetLang !== detectedLang) {
     reportPhase(job, 'translate', 94);
+    appendLog(job, `dịch ${detectedLang} → ${targetLang}`);
     const translatedPath = path.join(dir, 'transcript.translated.json');
     await runProcess(resolvePython(), [
       path.join(SCRIPTS_DIR, 'translate.py'),
@@ -110,7 +145,9 @@ export const runTranscribe = async ({job, videoPath, dir, meta, sourceLang = 'au
       detectedLang,
       '--tgt',
       targetLang,
-    ]);
+    ], {
+      onLine: (line) => appendLog(job, line),
+    });
     if (fs.existsSync(translatedPath)) transcript = JSON.parse(fs.readFileSync(translatedPath, 'utf8'));
   }
 
@@ -131,6 +168,8 @@ export const runTranscribe = async ({job, videoPath, dir, meta, sourceLang = 'au
     JSON.stringify({language: transcript.language, text: transcript.text, segments: transcript.segments}),
     'utf8',
   );
+
+  appendLog(job, `kết quả: ${cues.length} cue · ${words.length} từ có timing · video.srt`);
 
   finishJob(job, {
     srt,
@@ -163,6 +202,16 @@ export const runRender = async ({job, videoPath, dir, meta, look, crf = 18, conc
   const stored = JSON.parse(fs.readFileSync(path.join(dir, 'words.json'), 'utf8'));
 
   const resolvedLook = resolveRenderLook(look);
+  logHeader(job, 'Render phụ đề (render)', {
+    'video': meta.name,
+    'kích thước': `${meta.width}x${meta.height} @ ${meta.fps}fps · ${meta.durationSec}s`,
+    'crf': crf,
+    'đồng thời': `${concurrency} luồng`,
+    'font': resolvedLook.font === 'custom' ? resolvedLook.customFont?.family ?? 'custom' : resolvedLook.font,
+    'màu': `${resolvedLook.color} · hiệu ứng ${resolvedLook.effect} · weight ${resolvedLook.fontWeight}`,
+    'chromium': getBrowserExecutable() ?? '(chrome mặc định của Remotion)',
+    'node': process.version,
+  });
   const font = await loadSubtitleFont(
     resolvedLook.font === 'custom' ? fontPath(resolvedLook.customFont.file) : null,
   );
@@ -177,6 +226,10 @@ export const runRender = async ({job, videoPath, dir, meta, look, crf = 18, conc
   });
   if (errors.length) throw new Error(errors[0].message);
   if (!cues.length) throw new Error('Nội dung phụ đề đang trống.');
+  appendLog(job, `SRT: ${cues.length} cue · ${stored.words?.length ?? 0} từ có timing`);
+  const totalFrames = Math.max(1, Math.round(meta.durationSec * meta.fps));
+  appendLog(job, `khung hình: ${totalFrames}`);
+  let lastLogged = 0;
 
   const ext = path.extname(videoPath) || '.mp4';
   const stagedName = `input_${Date.now()}${ext}`;
@@ -194,11 +247,19 @@ export const runRender = async ({job, videoPath, dir, meta, look, crf = 18, conc
 
   try {
     reportPhase(job, 'bundle', 3);
+    appendLog(job, 'đóng gói Remotion (chỉ khi mã nguồn/font đổi, còn lại dùng cache)...');
     await renderSubtitledVideo({
       inputProps,
       outPath,
       crf,
       concurrency,
+      onBundleReady: (cached) =>
+        appendLog(
+          job,
+          cached
+            ? 'bundle: dùng cache có sẵn — bỏ qua bước đóng gói'
+            : 'bundle: đóng gói mới (lần đầu sau khi mã nguồn/font thay đổi)',
+        ),
       onBundleProgress: (bundlePercent) =>
         reportPercent(job, 3 + (Number(bundlePercent) / 100) * 4, {
           phase: 'bundle',
@@ -206,12 +267,18 @@ export const runRender = async ({job, videoPath, dir, meta, look, crf = 18, conc
         }),
       onProgress: ({progress, renderedFrames, totalFrames}) => {
         const percent = 5 + progress * 93;
+        const decile = Math.floor(percent / 10) * 10;
+        if (decile > lastLogged) {
+          lastLogged = decile;
+          appendLog(job, `render ${decile}% · ${renderedFrames}/${totalFrames} khung hình`);
+        }
         reportPercent(job, percent, {
           phase: 'render',
           message: `Đang xử lý khung hình ${renderedFrames} / ${totalFrames}...`,
         });
       },
     });
+    appendLog(job, `đã ghi output.mp4 (${(fs.statSync(outPath).size / 1024 / 1024).toFixed(1)} MB)`);
   } finally {
     fs.rmSync(stagedPath, {force: true});
   }

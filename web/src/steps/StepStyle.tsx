@@ -73,6 +73,7 @@ export const StepStyle = () => {
 
   return (
     <StepPanel
+      step="style"
       icon={<PaintBrush size={22} weight="bold" />}
       title="Chọn kiểu phụ đề"
       desc="Bắt đầu với một mẫu có sẵn, hoặc tự chọn màu chữ và phóm chữ riêng"

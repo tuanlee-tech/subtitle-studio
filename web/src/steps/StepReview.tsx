@@ -10,6 +10,7 @@ export const StepReview = () => {
 
   return (
     <StepPanel
+      step="review"
       icon={<FileText size={22} weight="bold" />}
       title="Xem lại / Chỉnh sửa SRT"
       desc="Kiểm tra nội dung và thời gian từng phụ đề, sửa trực tiếp trong khung bên dưới"

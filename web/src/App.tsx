@@ -1,4 +1,5 @@
 import {useEffect} from 'react';
+import {restoreSession} from './actions';
 import {TopBar} from './components/TopBar';
 import {WorkflowSidebar} from './components/WorkflowSidebar';
 import {hasSeenGuide, startGuide} from './guide';
@@ -13,6 +14,11 @@ import {useWorkflow} from './store';
 
 export const App = () => {
   const state = useWorkflow();
+
+  // A reload in the middle of a job: come back to the step it died on.
+  useEffect(() => {
+    void restoreSession();
+  }, []);
 
   // First visit: walk the user through the workflow once.
   useEffect(() => {

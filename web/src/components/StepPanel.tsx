@@ -1,7 +1,11 @@
 import type {ReactNode} from 'react';
 import {ArrowLeft, ArrowRight} from '@phosphor-icons/react';
+import {Terminal} from './Terminal';
+import {useWorkflow} from '../store';
+import type {StepId} from '../types';
 
 type Props = {
+  step: StepId;
   icon: ReactNode;
   title: string;
   desc: string;
@@ -18,8 +22,9 @@ type Props = {
   children: ReactNode;
 };
 
-/** Shared chrome of every workflow step: header, actions and body. */
+/** Shared chrome of every workflow step: header, actions, body and the terminal. */
 export const StepPanel = ({
+  step,
   icon,
   title,
   desc,
@@ -28,44 +33,53 @@ export const StepPanel = ({
   primary,
   secondary,
   children,
-}: Props) => (
-  <section className="panel">
-    <header className="panel__header">
-      <div className="panel__head-left">
-        <div className="panel__icon">{icon}</div>
-        <div>
-          <h1 className="panel__title" data-guide="panel-title">
-            {title}
-          </h1>
-          <p className="panel__desc">{desc}</p>
+}: Props) => {
+  const state = useWorkflow();
+  return (
+    <section className="panel">
+      <header className="panel__header">
+        <div className="panel__head-left">
+          <div className="panel__icon">{icon}</div>
+          <div>
+            <h1 className="panel__title" data-guide="panel-title">
+              {title}
+            </h1>
+            <p className="panel__desc">{desc}</p>
+          </div>
         </div>
-      </div>
-      <div className="panel__actions">
-        {onBack && (
-          <button type="button" className="btn btn--secondary" onClick={onBack}>
-            <ArrowLeft size={16} />
-            {backLabel}
-          </button>
-        )}
-        {secondary && (
-          <button type="button" className="btn btn--secondary" onClick={secondary.onClick} disabled={secondary.disabled}>
-            {secondary.label}
-          </button>
-        )}
-        {primary && (
-          <button
-            type="button"
-            className="btn btn--primary"
-            data-guide="primary"
-            onClick={primary.onClick}
-            disabled={primary.disabled || primary.loading}
-          >
-            {primary.label}
-            {!primary.hideArrow && <ArrowRight size={16} />}
-          </button>
-        )}
-      </div>
-    </header>
-    {children}
-  </section>
-);
+        <div className="panel__actions">
+          {onBack && (
+            <button type="button" className="btn btn--secondary" onClick={onBack}>
+              <ArrowLeft size={16} />
+              {backLabel}
+            </button>
+          )}
+          {secondary && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={secondary.onClick}
+              disabled={secondary.disabled}
+            >
+              {secondary.label}
+            </button>
+          )}
+          {primary && (
+            <button
+              type="button"
+              className="btn btn--primary"
+              data-guide="primary"
+              onClick={primary.onClick}
+              disabled={primary.disabled || primary.loading}
+            >
+              {primary.label}
+              {!primary.hideArrow && <ArrowRight size={16} />}
+            </button>
+          )}
+        </div>
+      </header>
+      {children}
+      <Terminal step={step} autoOpen={state.statuses[step] === 'error'} />
+    </section>
+  );
+};

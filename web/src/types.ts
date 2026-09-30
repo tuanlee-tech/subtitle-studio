@@ -69,6 +69,8 @@ export type WorkflowState = {
   job: JobState;
   outputUrl: string | null;
   error: string | null;
+  /** Per-step terminal trail shown in the `<details>` panels. */
+  logs: Record<StepId, string[]>;
 };
 
 export const STEP_ORDER: StepId[] = [

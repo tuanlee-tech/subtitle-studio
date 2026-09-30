@@ -23,12 +23,16 @@ import readline from 'node:readline/promises';
 import {fileURLToPath} from 'node:url';
 import {Command} from 'commander';
 import {buildCues, loadSubtitleFont, stabilizeSegmentTimings} from './lib/layout.mjs';
+import {getBrowserExecutable} from './lib/render.mjs';
+import {resolvePython} from './server/env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = __dirname;
 const PUBLIC_DIR = path.join(PROJECT_DIR, 'public');
 const WORK_DIR = path.join(PROJECT_DIR, '.work');
-const PYTHON = process.env.PYTHON ?? 'python3';
+const REMOTION_CLI = path.join(PROJECT_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+// .venv first, then the platform default (python.exe / python3) — same rule as the API server.
+const PYTHON = resolvePython();
 
 const log = (msg) => console.log(msg);
 const die = (msg) => {
@@ -169,6 +173,12 @@ const collectWords = (result) => {
 // ---------- Video metadata ----------
 
 const probeVideo = (video) => {
+  const check = spawnSync('ffprobe', ['-version'], {encoding: 'utf8'});
+  if (check.error || check.status !== 0) {
+    die(
+      'ffprobe not found — install ffmpeg first (Ubuntu/Debian: `sudo apt install ffmpeg` · Windows: `winget install Gyan.FFmpeg`)',
+    );
+  }
   const out = runCapture(
     'ffprobe',
     ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', video],
@@ -284,11 +294,16 @@ fs.writeFileSync(propsPath, JSON.stringify(props));
 
 // 6. Render
 log('Rendering with Remotion...');
+if (!fs.existsSync(REMOTION_CLI)) die('missing node_modules — run `npm install` first');
+// Run the CLI through the current node binary: `npx` is a .cmd on Windows and
+// cannot be spawned without a shell.
+const browser = getBrowserExecutable();
+if (!browser) log('No Chrome/Edge found — Remotion downloads its headless shell on first render.');
 try {
   run(
-    'npx',
+    process.execPath,
     [
-      'remotion',
+      REMOTION_CLI,
       'render',
       'src/index.ts',
       'SubtitledVideo',
@@ -300,7 +315,7 @@ try {
       '--audio-codec=aac',
       '--image-format=jpeg',
       '--overwrite',
-      `--browser-executable=${process.env.REMOTION_BROWSER ?? '/usr/bin/google-chrome'}`,
+      ...(browser ? [`--browser-executable=${browser}`] : []),
     ],
     {cwd: PROJECT_DIR},
   );

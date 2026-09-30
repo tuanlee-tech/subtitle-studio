@@ -21,6 +21,10 @@ release/
 .work_*.wav
 qa-*.png
 
+# bytecode Python
+__pycache__/
+*.pyc
+
 # output render
 video_subbed.mp4
 

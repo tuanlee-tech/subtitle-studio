@@ -40,6 +40,7 @@ const initial: WorkflowState = {
   job: idleJob,
   outputUrl: null,
   error: null,
+  logs: Object.fromEntries(STEP_ORDER.map((s) => [s, [] as string[]])) as Record<StepId, string[]>,
 };
 
 let state: WorkflowState = initial;
@@ -80,6 +81,29 @@ export const setStatus = (step: StepId, status: StepStatus) =>
 
 export const setJob = (patch: Partial<JobState>) =>
   setState((s) => ({job: {...s.job, ...patch}}));
+
+/** Per-step terminal trail, capped like the server's in-memory buffer. */
+const LOG_LIMIT = 2000;
+
+export const appendLog = (step: StepId, lines: string[]) => {
+  if (!lines.length) return;
+  setState((s) => {
+    const next = [...(s.logs[step] ?? []), ...lines];
+    return {logs: {...s.logs, [step]: next.length > LOG_LIMIT ? next.slice(next.length - LOG_LIMIT) : next}};
+  });
+};
+
+export const setLogs = (step: StepId, lines: string[]) =>
+  setState((s) => ({
+    logs: {...s.logs, [step]: lines.length > LOG_LIMIT ? lines.slice(lines.length - LOG_LIMIT) : lines},
+  }));
+
+/** Client-side event written in the same `HH:MM:SS text` shape as the server trail. */
+export const logLine = (step: StepId, text: string) => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  appendLog(step, [`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ${text}`]);
+};
 
 /** Furthest step the user may open given what has been completed so far. */
 export const maxReachable = (s: WorkflowState): number => {

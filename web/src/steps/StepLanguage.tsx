@@ -48,6 +48,7 @@ export const StepLanguage = () => {
 
   return (
     <StepPanel
+      step="language"
       icon={<Translate size={22} weight="bold" />}
       title="Cấu hình ngôn ngữ"
       desc="Chọn ngôn ngữ video gốc và ngôn ngữ đầu ra để tạo phụ đề"
