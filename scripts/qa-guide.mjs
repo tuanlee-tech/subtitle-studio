@@ -26,8 +26,18 @@ if (!chromePath) throw new Error('Không tìm thấy Chrome để chụp màn h�
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** The fixture every QA script uploads; override with QA_VIDEO=<path>. */
+const sampleVideo = () => {
+  const rel = process.env.QA_VIDEO ?? '.work/sample.mp4';
+  const file = path.join(project, rel);
+  if (!fs.existsSync(file)) {
+    throw new Error(`Không tìm thấy video mẫu "${rel}" — đặt file vào .work/sample.mp4 hoặc chạy với QA_VIDEO=<đường dẫn>`);
+  }
+  return file;
+};
+
 const uploadSample = async () => {
-  const file = path.join(project, process.env.QA_VIDEO ?? 'video.mp4');
+  const file = sampleVideo();
   const res = await fetch(`${API}/api/uploads?name=${path.basename(file)}`, {
     method: 'POST',
     headers: {'Content-Type': 'video/mp4'},
