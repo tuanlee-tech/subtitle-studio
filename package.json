@@ -16,7 +16,6 @@
     "studio": "remotion studio",
     "setup": "node scripts/setup.mjs",
     "doctor": "node scripts/setup.mjs --check",
-    "build-portable": "node scripts/build-portable.mjs",
     "typecheck": "tsc --noEmit && tsc -p web/tsconfig.json --noEmit"
   },
   "engines": {
