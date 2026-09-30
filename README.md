@@ -37,7 +37,7 @@ cd subtitle-studio
 
 ## B. Phát triển (dev)
 
-> Clone sang máy mới? Làm theo **[CLONE.md](CLONE.md)** (có bước push/clone + checklist lần đầu).
+> Clone sang máy mới? Làm theo **[CLONE.md](CLONE.md)** (có bước clone + checklist lần đầu).
 
 ### Yêu cầu hệ thống
 
@@ -116,7 +116,7 @@ node scripts/qa-guide.mjs   # test tour hướng dẫn
 | `src/` + `lib/` | Dựng hình Remotion (composition burn-in, layout, style) |
 | `scripts/` | pipeline Python (transcribe/translate/detect), setup, prefetch model, QA |
 | `public/` | Font Baloo2 + font người dùng tải lên |
-| `models/` | CT2 model đã convert (tự tạo khi chạy lần đầu) |
+| `models/` | CT2 model đã convert — `setup` tải sẵn (chạy `--skip-model` thì tự tải lần đầu bấm Transcribe) |
 | `storage/` | Job của bạn: video, transcript, srt, output |
 | `.venv/` | Môi trường Python (tự tạo bởi `npm run setup`) |
 
@@ -129,7 +129,7 @@ node scripts/qa-guide.mjs   # test tour hướng dẫn
 | `npm run setup` báo thiếu ensurepip / `python3-venv` | Ubuntu: `sudo apt install python3.12-venv`, hoặc bỏ qua — setup tự nạp pip qua mạng |
 | Setup báo "Tải model thất bại" | Mạng lúc đó — app vẫn dùng được, model tự tải lần đầu bấm Transcribe; hoặc chạy lại `npm run setup` |
 | Upload báo "Không đọc được metadata video" | File hỏc hoặc định dạng lạ — thử cài ffmpeg (`sudo apt install ffmpeg` / `winget install Gyan.FFmpeg`) để mở đường fallback |
-| Transcribe lần đầu rất chậm | Đang tải model ~3GB vào `models/` + cache HuggingFace |
+| Transcribe lần đầu rất chậm | Chạy setup với `--skip-model` → model tải ~3GB lúc này; bình thường setup đã tải sẵn |
 | Render báo thiếu browser | Để trống — Remotion tự tải, hoặc cài Chrome/Edge |
 | `pip` fail khi cài `torch==...+cpu` | Đừng xóa dòng `--extra-index-url .../whl/cpu` trong `requirements.txt` |
 | Transcribe crash `open() got an unexpected keyword argument 'metadata_errors'` | `av` 19 quá mới so với faster-whisper → `npm run setup` (requirements đã ghim `av<19`) |
